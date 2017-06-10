@@ -41,9 +41,25 @@ the Free Software Foundation, either version 3 of the License, or
 '''
 
 correctstyleDirName = '.correctstyle'
+
+
+
+
+"""
+patterns is a list of pairs.  This first in each pair is the pattern to match.
+It will be compiled into a regular expression object.  The second will be used
+with the first in a re.sub operation as the replacement.
+"""
 patterns = [
     #space around patterns
-    ('([^/* ])\*([^/=* ])',         r'\1 * \2'),
+    ('([^/* ])\*([^/=* ])',         r'\1 * \2'), 
+    """
+    because '*' is used for so many things, it is treated differently. My
+    goal is to surround the multiplication operator with spaces, but not mess with
+    '*' when used to dereference or make comments.
+    It will get x = 7*8, but if you've written x = 7* 8 or x = 7 *8, you'll have
+    to fix it on your own.
+    """
 
     # space before patterns
     ('([^+ ])\+(?!\+)',            r'\1 +'), 
@@ -58,10 +74,11 @@ patterns = [
     # space after patterns
     ('\+([^+=; ]\))',              r'+ \1'),
     ('-([^-=; ]\))',               r'- \1'),
-    ('\*=([^ ])',                   r'*= \1'),
+    ('\*=([^ ])',                  r'*= \1'),
     ('/([^/*=\n ])',               r'/ \1'),
     ('=([^= ])',                   r'= \1'),
-    ('(?<!-)>([^=>\n ])',          r'> \1'), ('(?<!#include )<([^=< ])',    r'< \1'),
+    ('(?<!-)>([^=>\n ])',          r'> \1'),
+    ('(?<!#include )<([^=< ])',    r'< \1'),
     ('\bif\(',                     r'if ('),
     ('\bfor\(',                    r'for ('),
     ('\bwhile\(',                  r'while ('),
@@ -73,16 +90,35 @@ patterns = [
     ('\}\n\s*else',                r'} else')
 ]
 
+
 def toIgnoreRecord(contextBefore, contextAfter):
+    """
+    correctstyle stores a rejected corrections so that user will not be
+    asked about the same correction again.
+    toIgnoreRecord puts contextBefore and contextAfter on a single line together
+    in the format in which it will be stored to be ignored in the future.
+    :return:  contextBefore and contextAfter on a single line together
+    in the format in which it will be stored to be ignored in the future.
+    """
     ignoreRecord = contextBefore + "<*before::after*>" + contextAfter
     ignoreRecord = ignoreRecord.replace("\n", "<*br*>")
     return ignoreRecord + "\n"
 
 def makeIgnoreFileName(fileName):
+    """
+    :param fileName: the name of the file being corrected
+    :return: the path to the file in which to store ignores
+    """
     global correctstyleDirName
     return correctstyleDirName + os.path.sep + fileName
 
 def writeIgnore(fileName, contextBefore, contextAfter):
+    """
+    correctstyle stores a rejected corrections so that user will not be
+    asked about the same correction again.
+    writeIgnore records that the user is not be asked again about replacing
+    `context before` with `context after`
+    """
     global correctstyleDirName
     if not os.path.exists(correctstyleDirName):
         os.makedirs(correctstyleDirName)
@@ -93,6 +129,11 @@ def writeIgnore(fileName, contextBefore, contextAfter):
         
 
 def isIgnored(fileName, contextBefore, contextAfter):
+    """
+    checks to see whether user has already rejected the change from
+    `contextBefore` to `contextAfter` in `fileName`
+    :return: boolean indictation whether correction has been previously rejected
+    """
     global correctstyleDirName
     if not os.path.exists(correctstyleDirName):
         return False
@@ -108,27 +149,40 @@ def isIgnored(fileName, contextBefore, contextAfter):
                 
     
 def getContext(txt, match):
+    """
+    Supplies the context for a proposed correction
+    :param txt: the whole text being scanned
+    :param match: re.MatchObject
+    :return: string. the line containing match.start()
+    to the line containing match.end()
+    """
     beginContext = txt.rfind('\n', 0, match.start())
     endContext = txt.find('\n', match.end())
     return txt[beginContext+1 : endContext]
     
 def splice(txt, insert, start, end):
+    """
+    replaces everything in `txt` between `start` and `end` with `insert`
+    :return: string with replaced text
+    """
     return txt[:start] + insert + txt[end:]
 
 def promptForReplacement(fileName, lineNo, pattern, replacement, contextBefore, contextAfter):
+    """
+    prompts user for whether to make a replacement
+    """
     print   "\n<<<<<<<<<< %s: %d     '%s'  :  '%s'" % (fileName, lineNo, pattern.pattern, replacement)
     print "%s\n==========\n%s" % (contextBefore, contextAfter)
     doIt = raw_input(">>>>>>>>>> make this replacement? [yes] or no:  ")
-    if doIt == 'show w':
-        print warranty
-        return promptForReplacement(fileName, lineNo, pattern, replacement, contextBefore, contextAfter)
-    elif doIt == 'show c':
-        print conditions
-        return promptForReplacement(fileName, lineNo, pattern, replacement, contextBefore, contextAfter)
-    else:
-        return len(doIt) == 0 or doIt[0] != 'n' and doIt[0] != 'N'
+    return len(doIt) == 0 or doIt[0] != 'n' and doIt[0] != 'N'
 
 def correctByPattern(fileName, txt, pattern, replacement):
+    """
+    scans through `txt` looking for `pattern`.  When found, offer
+    to replace using `replacement`
+    :param filename: the name of the file being scanned
+    :return: corrected `txt`
+    """
     pos = 0
     match = pattern.search(txt, pos)
     while match:
@@ -155,6 +209,10 @@ def correctByPattern(fileName, txt, pattern, replacement):
 
 
 def correctFile(fileName):
+    """
+    iterates through `global patterns` and scans through the contents of `fileName`
+    looking for matches and offering to make corrections.
+    """
     with open(fileName, "r") as mFile:
         txt = mFile.read();
 
